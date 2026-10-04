@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 5 - D3.js Interactive Visualizations</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12/dist/d3-sankey.min.js"></script>
+<style>
+body { font-family: Arial, sans-serif; margin: 0; background: #f5f5f5; color: #222; }
+header { padding: 20px; background: #222; color: white; }
+nav { padding: 10px; background: white; position: sticky; top: 0; }
+button { padding: 9px 14px; margin-right: 6px; cursor: pointer; }
+.panel { display: none; padding: 20px; overflow-x: auto; }
+.panel.active { display: block; }
+svg { background: #fff; border: 1px solid #ccc; }
+</style>
+</head>
+<body>
+<header>
+<h1>Lab 5: D3.js Interactive Visualizations</h1>
+<p>24SSDS415043 | Force Graph | Sankey | Treemap</p>
+</header>
+
+<nav>
+<button onclick="showPanel('force')">Force-Directed Graph</button>
+<button onclick="showPanel('sankey')">Sankey Diagram</button>
+<button onclick="showPanel('treemap')">Treemap</button>
+</nav>
+
+<section id="force" class="panel active"><h2>Force-Directed Graph</h2><div id="forceGraph"></div></section>
+<section id="sankey" class="panel"><h2>Sankey Diagram</h2><div id="sankeyGraph"></div></section>
+<section id="treemap" class="panel"><h2>Treemap</h2><div id="treemapGraph"></div></section>
+
+<script>
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function drawForceGraph() {
+  const width = 1000, height = 560;
+  const nodes = [
+    {id:"Data Cleaning"}, {id:"EDA"}, {id:"Feature Engineering"},
+    {id:"Model Training"}, {id:"Evaluation"}, {id:"Visualization"},
+    {id:"Deployment"}
+  ];
+  const links = [
+    {source:"Data Cleaning",target:"EDA"},
+    {source:"EDA",target:"Feature Engineering"},
+    {source:"Feature Engineering",target:"Model Training"},
+    {source:"Model Training",target:"Evaluation"},
+    {source:"Evaluation",target:"Visualization"},
+    {source:"Visualization",target:"Deployment"},
+    {source:"EDA",target:"Visualization"}
+  ];
+
+  const svg = d3.select("#forceGraph").append("svg")
+    .attr("width",width).attr("height",height);
+
+  const simulation = d3.forceSimulation(nodes)
+    .force("link",d3.forceLink(links).id(d=>d.id).distance(125))
+    .force("charge",d3.forceManyBody().strength(-420))
+    .force("center",d3.forceCenter(width/2,height/2));
+
+  const link = svg.append("g").selectAll("line").data(links).join("line")
+    .attr("stroke","#999").attr("stroke-width",1.8);
+
+  const node = svg.append("g").selectAll("circle").data(nodes).join("circle")
+    .attr("r",13).attr("fill","#4C78A8")
+    .on("mouseover",function(){d3.select(this).attr("fill","#F58518").attr("r",15);})
+    .on("mouseout",function(){d3.select(this).attr("fill","#4C78A8").attr("r",13);})
+    .call(d3.drag()
+      .on("start",(event,d)=>{if(!event.active)simulation.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on("drag",(event,d)=>{d.fx=event.x;d.fy=event.y;})
+      .on("end",(event,d)=>{if(!event.active)simulation.alphaTarget(0);d.fx=null;d.fy=null;}));
+
+  const label = svg.append("g").selectAll("text").data(nodes).join("text")
+    .text(d=>d.id).attr("font-size",12).attr("dx",17).attr("dy",4);
+
+  simulation.on("tick",()=>{
+    link.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y)
+        .attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+    node.attr("cx",d=>d.x).attr("cy",d=>d.y);
+    label.attr("x",d=>d.x).attr("y",d=>d.y);
+  });
+}
+
+function drawSankey() {
+  const width = 1100, height = 600;
+  const nodes = [
+    {name:"Web Logs"},{name:"Mobile App"},{name:"CRM Export"},
+    {name:"Data Cleaning"},{name:"Rejected"},{name:"EDA"},
+    {name:"Feature Engineering"},{name:"Model Training"},
+    {name:"Evaluation"},{name:"Visualization"},{name:"Deployment"}
+  ];
+  const links = [
+    {source:"Web Logs",target:"Data Cleaning",value:5000},
+    {source:"Mobile App",target:"Data Cleaning",value:3000},
+    {source:"CRM Export",target:"Data Cleaning",value:2000},
+    {source:"Data Cleaning",target:"EDA",value:8500},
+    {source:"Data Cleaning",target:"Rejected",value:1500},
+    {source:"EDA",target:"Feature Engineering",value:6000},
+    {source:"EDA",target:"Visualization",value:2500},
+    {source:"Feature Engineering",target:"Model Training",value:4800},
+    {source:"Feature Engineering",target:"Evaluation",value:1200},
+    {source:"Model Training",target:"Evaluation",value:4800},
+    {source:"Evaluation",target:"Deployment",value:5000},
+    {source:"Evaluation",target:"Visualization",value:1000}
+  ];
+
+  const svg = d3.select("#sankeyGraph").append("svg")
+    .attr("width",width).attr("height",height);
+
+  const graph = d3.sankey().nodeId(d=>d.name).nodeWidth(18).nodePadding(24)
+    .extent([[20,20],[width-20,height-20]])({
+      nodes:nodes.map(d=>({...d})),
+      links:links.map(d=>({...d}))
+    });
+
+  const color = d3.scaleOrdinal(d3.schemeTableau10);
+
+  svg.append("g").selectAll("path").data(graph.links).join("path")
+    .attr("d",d3.sankeyLinkHorizontal()).attr("fill","none")
+    .attr("stroke",d=>color(d.source.name))
+    .attr("stroke-opacity",.38).attr("stroke-width",d=>Math.max(1,d.width));
+
+  svg.append("g").selectAll("rect").data(graph.nodes).join("rect")
+    .attr("x",d=>d.x0).attr("y",d=>d.y0)
+    .attr("width",d=>d.x1-d.x0).attr("height",d=>d.y1-d.y0)
+    .attr("fill",d=>color(d.name))
+    .on("mouseover",function(event,d){
+      d3.select(this).transition().duration(200)
+        .attr("fill",d3.color(color(d.name)).brighter(.7));
+    })
+    .on("mouseout",function(event,d){
+      d3.select(this).transition().duration(200)
+        .attr("fill",color(d.name));
+    });
+
+  svg.append("g").selectAll("text").data(graph.nodes).join("text")
+    .text(d=>d.name).attr("font-size",11)
+    .attr("x",d=>d.x0<width/2?d.x1+7:d.x0-7)
+    .attr("y",d=>(d.y0+d.y1)/2).attr("dy",".35em")
+    .attr("text-anchor",d=>d.x0<width/2?"start":"end");
+}
+
+function drawTreemap() {
+  const width = 1000, height = 600;
+  const data = {
+    name:"Data Pipeline",
+    children:[
+      {name:"Input Sources",children:[
+        {name:"Web Logs",value:5000},{name:"Mobile App",value:3000},{name:"CRM Export",value:2000}
+      ]},
+      {name:"Processing",children:[
+        {name:"Data Cleaning",value:10000},{name:"EDA",value:8500},
+        {name:"Feature Engineering",value:7200},{name:"Model Training",value:4800},
+        {name:"Evaluation",value:6000}
+      ]},
+      {name:"Output",children:[
+        {name:"Visualization",value:3500},{name:"Deployment",value:5000}
+      ]}
+    ]
+  };
+
+  const root = d3.hierarchy(data).sum(d=>d.value||0).sort((a,b)=>b.value-a.value);
+  d3.treemap().size([width,height]).paddingInner(3).paddingOuter(5).round(true)(root);
+
+  const svg = d3.select("#treemapGraph").append("svg")
+    .attr("width",width).attr("height",height);
+
+  const color = d3.scaleOrdinal()
+    .domain(["Input Sources","Processing","Output"])
+    .range(["#4C78A8","#F58518","#54A24B"]);
+
+  const cell = svg.append("g").selectAll("g").data(root.leaves()).join("g")
+    .attr("transform",d=>`translate(${d.x0},${d.y0})`);
+
+  cell.append("rect")
+    .attr("width",d=>Math.max(0,d.x1-d.x0))
+    .attr("height",d=>Math.max(0,d.y1-d.y0))
+    .attr("fill",d=>color(d.parent.data.name))
+    .attr("fill-opacity",.82).attr("stroke","#fff")
+    .on("mouseover",function(){d3.select(this).transition().duration(200).attr("fill-opacity",1);})
+    .on("mouseout",function(){d3.select(this).transition().duration(200).attr("fill-opacity",.82);})
+    .append("title").text(d=>`${d.data.name}: ${d.value}`);
+
+  cell.append("text").attr("x",6).attr("y",18)
+    .text(d=>d.data.name).attr("font-size",12).attr("fill","white");
+  cell.append("text").attr("x",6).attr("y",34)
+    .text(d=>d.value.toLocaleString()).attr("font-size",11).attr("fill","white");
+}
+
+drawForceGraph();
+drawSankey();
+drawTreemap();
+</script>
+</body>
+</html>
